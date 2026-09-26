@@ -1925,19 +1925,19 @@ impl crate::CommandEncoder for super::CommandEncoder {
         residency_set.commit();
     }
 
+    // Ray-tracing pipelines are not supported on Metal: the adapter never reports
+    // `EXPERIMENTAL_RAY_TRACING_PIPELINES`, wgpu-core refuses a ray-tracing pass without it, and
+    // no `RayTracingPipeline` can be created. These record nothing rather than panic.
     unsafe fn begin_ray_tracing_pass(&mut self, _desc: &crate::RayTracingPassDescriptor) {
-        unreachable!("Ray tracing pipelines not supported")
+        log::error!("begin_ray_tracing_pass: ray-tracing pipelines are not supported on Metal");
     }
 
-    unsafe fn end_ray_tracing_pass(&mut self) {
-        unreachable!("Ray tracing pipelines not supported")
-    }
+    unsafe fn end_ray_tracing_pass(&mut self) {}
 
     unsafe fn set_ray_tracing_pipeline(
         &mut self,
         _pipeline: &<Self::A as crate::Api>::RayTracingPipeline,
     ) {
-        unreachable!("Ray tracing pipelines not supported")
     }
 
     unsafe fn trace_rays(
@@ -1947,7 +1947,6 @@ impl crate::CommandEncoder for super::CommandEncoder {
         _miss_group_data: crate::PipelineGroupData<super::Buffer>,
         _intersection_group_data: crate::PipelineGroupData<super::Buffer>,
     ) {
-        unreachable!("Ray tracing pipelines not supported")
     }
 }
 

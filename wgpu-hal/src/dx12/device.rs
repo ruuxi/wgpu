@@ -2346,12 +2346,17 @@ impl crate::Device for super::Device {
             super::ShaderModule,
             super::PipelineCache,
         >,
-    ) -> Result<<Self::A as crate::Api>::RayTracingPipeline, crate::PipelineError> {
-        unreachable!("ray tracing pipelines not yet implemented")
+    ) -> Result<super::RayTracingPipeline, crate::PipelineError> {
+        // The adapter never reports `EXPERIMENTAL_RAY_TRACING_PIPELINES` on DX12, so
+        // wgpu-core refuses the call before it gets here; answer with an error, not a panic.
+        Err(crate::PipelineError::Linkage(
+            wgt::ShaderStages::RAY_GENERATION,
+            "ray-tracing pipelines are not supported on DX12".into(),
+        ))
     }
 
     unsafe fn destroy_ray_tracing_pipeline(&self, _pipeline: super::RayTracingPipeline) {
-        unreachable!("ray tracing pipelines not yet implemented")
+        // No ray-tracing pipeline can be created on DX12; nothing to release.
     }
 
     unsafe fn get_raytracing_pipeline_group_data(
@@ -2359,7 +2364,7 @@ impl crate::Device for super::Device {
         _pipeline: &super::RayTracingPipeline,
         _groups: core::ops::Range<u32>,
     ) -> Result<Vec<u8>, crate::DeviceError> {
-        unimplemented!("ray tracing pipelines not yet implemented")
+        Err(crate::DeviceError::Unexpected)
     }
 
     unsafe fn create_pipeline_cache(

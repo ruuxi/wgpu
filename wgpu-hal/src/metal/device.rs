@@ -1986,11 +1986,16 @@ impl crate::Device for super::Device {
             super::PipelineCache,
         >,
     ) -> Result<super::RayTracingPipeline, crate::PipelineError> {
-        unimplemented!("Ray tracing pipelines are unsupported on Metal")
+        // The adapter never reports `EXPERIMENTAL_RAY_TRACING_PIPELINES` on Metal, so
+        // wgpu-core refuses the call before it gets here; answer with an error, not a panic.
+        Err(crate::PipelineError::Linkage(
+            wgt::ShaderStages::RAY_GENERATION,
+            "ray-tracing pipelines are not supported on Metal".into(),
+        ))
     }
 
     unsafe fn destroy_ray_tracing_pipeline(&self, _pipeline: super::RayTracingPipeline) {
-        unimplemented!("Ray tracing pipelines are unsupported on Metal")
+        // No ray-tracing pipeline can be created on Metal; nothing to release.
     }
 
     unsafe fn get_raytracing_pipeline_group_data(
@@ -1998,7 +2003,7 @@ impl crate::Device for super::Device {
         _pipeline: &super::RayTracingPipeline,
         _groups: core::ops::Range<u32>,
     ) -> Result<Vec<u8>, crate::DeviceError> {
-        unimplemented!("Ray tracing pipelines are unsupported on Metal")
+        Err(crate::DeviceError::Unexpected)
     }
 
     unsafe fn create_pipeline_cache(

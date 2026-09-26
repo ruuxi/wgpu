@@ -7180,7 +7180,12 @@ template <typename A>
                 crate::ShaderStage::RayGeneration
                 | crate::ShaderStage::AnyHit
                 | crate::ShaderStage::ClosestHit
-                | crate::ShaderStage::Miss => unimplemented!(),
+                | crate::ShaderStage::Miss => {
+                    return Err(Error::FeatureNotImplemented(format!(
+                        "{:?} entry points (ray-tracing pipelines) in MSL",
+                        ep.stage
+                    )));
+                }
             };
 
             // Should this entry point be modified to do vertex pulling?
