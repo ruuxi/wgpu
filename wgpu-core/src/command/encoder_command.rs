@@ -168,6 +168,13 @@ pub enum Command<R: ReferenceType> {
         buffer_transitions: Vec<wgt::BufferTransition<R::Buffer>>,
         texture_transitions: Vec<wgt::TextureTransition<R::Texture>>,
     },
+    /// Backend commands recorded by a callback at this point of the stream,
+    /// after the listed transitions (`CommandEncoder::as_hal_deferred`).
+    RawHal {
+        buffer_transitions: Vec<wgt::BufferTransition<R::Buffer>>,
+        texture_transitions: Vec<wgt::TextureTransition<R::Texture>>,
+        callback: crate::command::RawHalCallback,
+    },
 }
 
 pub type ArcCommand = Command<ArcReferences>;

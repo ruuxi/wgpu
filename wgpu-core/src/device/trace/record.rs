@@ -291,6 +291,30 @@ impl IntoTrace for ArcCommand {
                 // If you want to ignore, you could panic or return a default.
                 panic!("TransitionResources cannot be converted to Command");
             }
+            ArcCommand::RawHal {
+                buffer_transitions,
+                texture_transitions,
+                callback,
+            } => Command::RawHal {
+                buffer_transitions: buffer_transitions
+                    .into_iter()
+                    .map(|t| wgt::BufferTransition {
+                        buffer: t.buffer.into_trace(),
+                        state: t.state,
+                    })
+                    .collect(),
+                texture_transitions: texture_transitions
+                    .into_iter()
+                    .map(|t| wgt::TextureTransition {
+                        texture: t.texture.into_trace(),
+                        selector: t.selector,
+                        state: t.state,
+                    })
+                    .collect(),
+                // The callback is native code and cannot be traced; a replay
+                // performs the transitions only.
+                callback,
+            },
         }
     }
 }

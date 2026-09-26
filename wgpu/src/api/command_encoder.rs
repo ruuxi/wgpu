@@ -307,6 +307,68 @@ impl CommandEncoder {
         }
     }
 
+    /// Record raw backend commands at this point of the command stream, on an encoder that
+    /// is also used with the wgpu encoding API.
+    ///
+    /// wgpu records commands lazily and encodes them when [`finish`](Self::finish) is
+    /// called, so [`as_hal_mut`](Self::as_hal_mut) can only be used on an encoder that
+    /// records nothing else. This method instead puts `callback` in the command list: when
+    /// the encoder is finished, wgpu transitions the given buffers and textures to the given
+    /// states (tracked, exactly as [`transition_resources`](Self::transition_resources)
+    /// does, so the commands after this one see those states), records their
+    /// initialization (a texture or buffer given a writable state counts as fully written;
+    /// one given a read-only state is cleared first if it was never initialized) and calls
+    /// `callback` with the open backend encoder, between the commands recorded before and
+    /// after this call. `callback` runs during `finish`, on the thread calling it; it
+    /// receives `None` when the encoder is not of backend `A`.
+    ///
+    /// # Types
+    ///
+    /// The callback argument depends on the backend:
+    ///
+    #[doc = crate::macros::hal_type_vulkan!("CommandEncoder")]
+    #[doc = crate::macros::hal_type_metal!("CommandEncoder")]
+    #[doc = crate::macros::hal_type_dx12!("CommandEncoder")]
+    #[doc = crate::macros::hal_type_gles!("CommandEncoder")]
+    ///
+    /// # Safety
+    ///
+    /// - `callback` must leave every given resource in the state it was transitioned to (on
+    ///   Vulkan, the image layout wgpu-hal derives for that usage) and must not touch other
+    ///   wgpu resources in ways their tracked state does not allow.
+    /// - `callback` must not end, submit or keep the encoder or its command buffer.
+    /// - Raw handles used by `callback` must stay alive until the command buffer finished
+    ///   executing; the given buffers and textures are kept alive by wgpu.
+    #[cfg(wgpu_core)]
+    pub unsafe fn as_hal_deferred<'a, A, F>(
+        &mut self,
+        buffer_transitions: impl Iterator<Item = wgt::BufferTransition<&'a Buffer>>,
+        texture_transitions: impl Iterator<Item = wgt::TextureTransition<&'a Texture>>,
+        callback: F,
+    ) where
+        A: hal::Api,
+        F: FnOnce(Option<&mut A::CommandEncoder>) + Send + 'static,
+    {
+        if let Some(encoder) = self.inner.as_core_mut_opt() {
+            unsafe {
+                encoder.as_hal_deferred::<A, F>(
+                    buffer_transitions.map(|t| wgt::BufferTransition {
+                        buffer: &t.buffer.inner,
+                        state: t.state,
+                    }),
+                    texture_transitions.map(|t| wgt::TextureTransition {
+                        texture: &t.texture.inner,
+                        selector: t.selector,
+                        state: t.state,
+                    }),
+                    callback,
+                )
+            }
+        } else {
+            callback(None)
+        }
+    }
+
     #[cfg(custom)]
     /// Returns custom implementation of CommandEncoder (if custom backend and is internally T)
     pub fn as_custom<T: custom::CommandEncoderInterface>(&self) -> Option<&T> {

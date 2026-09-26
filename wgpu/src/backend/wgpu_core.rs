@@ -446,6 +446,32 @@ impl CoreCommandEncoder {
                 .as_hal_mut::<A, F, R>(hal_command_encoder_callback)
         }
     }
+
+    /// Record `callback` into the deferred command list, after the given transitions.
+    pub unsafe fn as_hal_deferred<'a, A, F>(
+        &self,
+        buffer_transitions: impl Iterator<Item = wgt::BufferTransition<&'a dispatch::DispatchBuffer>>,
+        texture_transitions: impl Iterator<Item = wgt::TextureTransition<&'a dispatch::DispatchTexture>>,
+        callback: F,
+    ) where
+        A: hal::Api,
+        F: FnOnce(Option<&mut A::CommandEncoder>) + Send + 'static,
+    {
+        self.wgpu_command_encoder.as_hal_deferred(
+            buffer_transitions.map(|t| wgt::BufferTransition {
+                buffer: t.buffer.as_core().wgpu_buffer.clone(),
+                state: t.state,
+            }),
+            texture_transitions.map(|t| wgt::TextureTransition {
+                texture: t.texture.as_core().wgpu_texture.clone(),
+                selector: t.selector,
+                state: t.state,
+            }),
+            Box::new(move |raw: &mut dyn hal::DynCommandEncoder| {
+                callback(raw.as_any_mut().downcast_mut::<A::CommandEncoder>())
+            }),
+        );
+    }
 }
 
 #[derive(Debug, Clone)]

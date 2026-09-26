@@ -1017,6 +1017,22 @@ impl Player {
                     .map(|trans| self.resolve_texture_transition(trans))
                     .collect(),
             },
+            // The traced callback is empty: a replay performs the transitions only.
+            Command::RawHal {
+                buffer_transitions,
+                texture_transitions,
+                callback,
+            } => Command::RawHal {
+                buffer_transitions: buffer_transitions
+                    .into_iter()
+                    .map(|trans| self.resolve_buffer_transition(trans))
+                    .collect(),
+                texture_transitions: texture_transitions
+                    .into_iter()
+                    .map(|trans| self.resolve_texture_transition(trans))
+                    .collect(),
+                callback,
+            },
         }
     }
 

@@ -20,6 +20,7 @@ mod encoder_command;
 mod memory_init;
 mod pass;
 mod query;
+mod raw_hal;
 mod ray_tracing;
 mod ray_tracing_pass;
 mod ray_tracing_pass_commands;
@@ -57,6 +58,7 @@ pub use self::{
     draw::{DrawError, Rect, RenderCommandError},
     encoder_command::{ArcCommand, ArcReferences, Command, ReferenceType},
     query::{QueryError, QueryUseError, ResolveError, SimplifiedQueryType},
+    raw_hal::{RawHalCallback, RawHalFn},
     ray_tracing_pass::{
         RayTracingBasePass, RayTracingPass, RayTracingPassDescriptor, RayTracingPassError,
         RayTracingPassErrorInner, TraceRayError,
@@ -1310,6 +1312,18 @@ impl CommandEncoder {
                             &mut state,
                             buffer_transitions,
                             texture_transitions,
+                        )?;
+                    }
+                    ArcCommand::RawHal {
+                        buffer_transitions,
+                        texture_transitions,
+                        callback,
+                    } => {
+                        raw_hal::encode_raw_hal(
+                            &mut state,
+                            buffer_transitions,
+                            texture_transitions,
+                            callback,
                         )?;
                     }
                     ArcCommand::RunComputePass { .. }
