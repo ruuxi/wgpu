@@ -322,6 +322,19 @@ impl CommandEncoder {
     /// after this call. `callback` runs during `finish`, on the thread calling it; it
     /// receives `None` when the encoder is not of backend `A`.
     ///
+    /// # Retention
+    ///
+    /// What `callback` returns is kept with the command buffer until that command buffer can
+    /// no longer run: it is dropped after the submission containing it has finished executing
+    /// on the GPU, or when the command buffer is dropped without being submitted (or fails
+    /// to submit). Move into it whatever the recorded commands use that wgpu does not track,
+    /// such as [`TextureView`](crate::TextureView)s whose raw handles they reference, or native
+    /// objects. It is
+    /// dropped inside wgpu's submission bookkeeping ([`Device::poll`](crate::Device::poll),
+    /// [`Queue::submit`](crate::Queue::submit)) on whichever thread runs it, so its `Drop` must
+    /// neither call wgpu nor block. When `callback` is never called (the encoder is dropped
+    /// unfinished) it is dropped with everything it captured.
+    ///
     /// # Types
     ///
     /// The callback argument depends on the backend:
@@ -338,20 +351,22 @@ impl CommandEncoder {
     ///   wgpu resources in ways their tracked state does not allow.
     /// - `callback` must not end, submit or keep the encoder or its command buffer.
     /// - Raw handles used by `callback` must stay alive until the command buffer finished
-    ///   executing; the given buffers and textures are kept alive by wgpu.
+    ///   executing (return their owners from `callback`, see Retention); the given buffers
+    ///   and textures are kept alive by wgpu.
     #[cfg(wgpu_core)]
-    pub unsafe fn as_hal_deferred<'a, A, F>(
+    pub unsafe fn as_hal_deferred<'a, A, F, R>(
         &mut self,
         buffer_transitions: impl Iterator<Item = wgt::BufferTransition<&'a Buffer>>,
         texture_transitions: impl Iterator<Item = wgt::TextureTransition<&'a Texture>>,
         callback: F,
     ) where
         A: hal::Api,
-        F: FnOnce(Option<&mut A::CommandEncoder>) + Send + 'static,
+        F: FnOnce(Option<&mut A::CommandEncoder>) -> R + Send + 'static,
+        R: Send + 'static,
     {
         if let Some(encoder) = self.inner.as_core_mut_opt() {
             unsafe {
-                encoder.as_hal_deferred::<A, F>(
+                encoder.as_hal_deferred::<A, F, R>(
                     buffer_transitions.map(|t| wgt::BufferTransition {
                         buffer: &t.buffer.inner,
                         state: t.state,
@@ -365,7 +380,8 @@ impl CommandEncoder {
                 )
             }
         } else {
-            callback(None)
+            // Nothing was recorded, so nothing needs to be retained.
+            let _ = callback(None);
         }
     }
 

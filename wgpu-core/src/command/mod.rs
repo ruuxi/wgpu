@@ -58,7 +58,7 @@ pub use self::{
     draw::{DrawError, Rect, RenderCommandError},
     encoder_command::{ArcCommand, ArcReferences, Command, ReferenceType},
     query::{QueryError, QueryUseError, ResolveError, SimplifiedQueryType},
-    raw_hal::{RawHalCallback, RawHalFn},
+    raw_hal::{RawHalCallback, RawHalFn, RawHalRetained},
     ray_tracing_pass::{
         RayTracingBasePass, RayTracingPass, RayTracingPassDescriptor, RayTracingPassError,
         RayTracingPassErrorInner, TraceRayError,

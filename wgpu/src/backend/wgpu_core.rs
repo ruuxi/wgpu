@@ -447,15 +447,17 @@ impl CoreCommandEncoder {
         }
     }
 
-    /// Record `callback` into the deferred command list, after the given transitions.
-    pub unsafe fn as_hal_deferred<'a, A, F>(
+    /// Record `callback` into the deferred command list, after the given transitions. What
+    /// it returns is retained until the command buffer can no longer run.
+    pub unsafe fn as_hal_deferred<'a, A, F, R>(
         &self,
         buffer_transitions: impl Iterator<Item = wgt::BufferTransition<&'a dispatch::DispatchBuffer>>,
         texture_transitions: impl Iterator<Item = wgt::TextureTransition<&'a dispatch::DispatchTexture>>,
         callback: F,
     ) where
         A: hal::Api,
-        F: FnOnce(Option<&mut A::CommandEncoder>) + Send + 'static,
+        F: FnOnce(Option<&mut A::CommandEncoder>) -> R + Send + 'static,
+        R: Send + 'static,
     {
         self.wgpu_command_encoder.as_hal_deferred(
             buffer_transitions.map(|t| wgt::BufferTransition {
@@ -467,9 +469,13 @@ impl CoreCommandEncoder {
                 selector: t.selector,
                 state: t.state,
             }),
-            Box::new(move |raw: &mut dyn hal::DynCommandEncoder| {
-                callback(raw.as_any_mut().downcast_mut::<A::CommandEncoder>())
-            }),
+            Box::new(
+                move |raw: &mut dyn hal::DynCommandEncoder| -> Box<dyn core::any::Any + Send> {
+                    Box::new(callback(
+                        raw.as_any_mut().downcast_mut::<A::CommandEncoder>(),
+                    ))
+                },
+            ),
         );
     }
 }

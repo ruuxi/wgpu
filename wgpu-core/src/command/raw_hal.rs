@@ -12,6 +12,15 @@
 //! declared resource in the state (for Vulkan: the image layout wgpu-hal derives
 //! for that usage) it was given, and must not keep the encoder.
 //!
+//! Retention: what the callback returns is kept with the command buffer and
+//! dropped only once that command buffer can no longer run: after the
+//! submission that contains it has finished executing on the GPU, or when the
+//! command buffer is dropped without being submitted (or fails to submit). The
+//! callback moves into it whatever its recorded commands refer to that wgpu
+//! does not track (native objects, extra image views). It is dropped inside
+//! wgpu's submission bookkeeping (`Device::poll`, `Queue::submit`), so its
+//! `Drop` must neither call back into wgpu nor block.
+//!
 //! Initialization: a texture declared with a state that includes a write usage
 //! is treated as fully written by the callback (implicitly initialized); a
 //! texture declared read-only must hold initialized contents (wgpu-core clears
@@ -19,19 +28,33 @@
 //! whole size.
 
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use core::fmt;
+use core::{any::Any, fmt};
 
 use crate::{
     command::{
         clear_texture, encoder::EncodingState, transition_resources, ArcCommand, CommandEncoder,
         CommandEncoderError, EncoderStateError, TransitionResourcesError,
     },
+    device::queue::TempResource,
     init_tracker::{MemoryInitKind, TextureInitRange, TextureInitTrackerAction},
     resource::{Buffer, Labeled as _, Texture},
 };
 
-/// The callback of a deferred raw HAL command.
-pub type RawHalFn = Box<dyn FnOnce(&mut dyn hal::DynCommandEncoder) + Send + 'static>;
+/// The callback of a deferred raw HAL command. What it returns is retained
+/// until its command buffer can no longer run (see the [module docs](self)).
+pub type RawHalFn =
+    Box<dyn FnOnce(&mut dyn hal::DynCommandEncoder) -> Box<dyn Any + Send> + Send + 'static>;
+
+/// What a [`RawHalFn`] returned, kept with its command buffer (among its
+/// temporary resources) until that command buffer has finished executing or is
+/// dropped unsubmitted.
+pub struct RawHalRetained(#[allow(dead_code)] Box<dyn Any + Send>);
+
+impl fmt::Debug for RawHalRetained {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("RawHalRetained")
+    }
+}
 
 /// A [`RawHalFn`] shared by the (cloneable) command that carries it. It runs at
 /// most once; a clone of the command (trace recording) carries no callback.
@@ -191,7 +214,10 @@ pub(crate) fn encode_raw_hal(
     }
     transition_resources::transition_resources(state, buffer_transitions, texture_transitions)?;
     if let Some(f) = callback.take() {
-        f(state.raw_encoder);
+        let retained = f(state.raw_encoder);
+        state
+            .temp_resources
+            .push(TempResource::RawHalRetained(RawHalRetained(retained)));
     }
     Ok(())
 }

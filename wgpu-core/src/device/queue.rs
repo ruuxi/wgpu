@@ -335,6 +335,9 @@ pub enum TempResource {
     DestroyedBuffer(DestroyedBuffer),
     DestroyedTexture(DestroyedTexture),
     DestroyedQuerySet(DestroyedQuerySet),
+    /// What a deferred raw HAL command keeps until its command buffer has
+    /// finished executing (`CommandEncoder::as_hal_deferred`).
+    RawHalRetained(crate::command::RawHalRetained),
 }
 
 /// A series of raw [`CommandBuffer`]s that have been submitted to a
